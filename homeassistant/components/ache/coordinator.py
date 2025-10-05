@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 from typing import TYPE_CHECKING
 
@@ -18,7 +18,12 @@ from homeassistant.core import (
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import CONF_MIN_R_SQUARED, CONF_ROOM_VOLUME, MIN_DECAY_POINTS
+from .const import (
+    CONF_BASELINE_CO2,
+    CONF_MIN_R_SQUARED,
+    CONF_ROOM_VOLUME,
+    MIN_DECAY_POINTS,
+)
 from .models import AchEstimate, TimeSeriesData
 
 if TYPE_CHECKING:
@@ -43,7 +48,6 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
             hass,
             _LOGGER,
             name="ACH Coordinator",
-            update_interval=timedelta(seconds=30),
             config_entry=config_entry,
         )
         self.source_entity_id = source_entity_id
@@ -53,9 +57,21 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
         # Configuration
         self.room_volume = config_entry.data[CONF_ROOM_VOLUME]
         self.min_r_squared = config_entry.data[CONF_MIN_R_SQUARED]
+        self.baseline_co2 = config_entry.data.get(
+            CONF_BASELINE_CO2, 420.0
+        )  # Default for older configs
 
         # ACH calculation results
         self.ach_estimate: AchEstimate | None = None
+
+    async def _async_update_data(self) -> TimeSeriesData:
+        """Update data via polling (not used - event-driven coordinator).
+
+        This coordinator is event-driven and updates via state change events.
+        This method is implemented to satisfy DataUpdateCoordinator requirements
+        but doesn't perform any actual updates.
+        """
+        return self.data
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
@@ -109,15 +125,13 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
     def _calculate_ach(self) -> None:
         """Calculate ACH estimate from time series data."""
         estimate = self.data.fit_exponential_decay(
-            self.room_volume, min_points=MIN_DECAY_POINTS
+            self.room_volume,
+            min_points=MIN_DECAY_POINTS,
+            min_r_squared=self.min_r_squared,
+            baseline_co2=self.baseline_co2,
         )
 
-        if estimate is None:
-            self.ach_estimate = None
-            return
-
-        # Only accept estimate if R² meets threshold
-        if estimate.r_squared >= self.min_r_squared:
+        if estimate is not None:
             self.ach_estimate = estimate
             _LOGGER.info(
                 "ACH estimate: %.2f changes/hour (R²=%.4f, decay_rate=%.6f/s)",
@@ -127,11 +141,6 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
             )
         else:
             self.ach_estimate = None
-            _LOGGER.debug(
-                "ACH estimate rejected: R²=%.4f below threshold %.4f",
-                estimate.r_squared,
-                self.min_r_squared,
-            )
 
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator."""

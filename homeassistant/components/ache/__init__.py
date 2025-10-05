@@ -12,9 +12,11 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
+    CONF_BASELINE_CO2,
     CONF_MIN_R_SQUARED,
     CONF_ROOM_VOLUME,
     CONF_SOURCE_SENSOR,
+    DEFAULT_BASELINE_CO2,
     DEFAULT_MIN_R_SQUARED,
     DOMAIN,
 )
@@ -31,6 +33,9 @@ ACHE_SCHEMA = vol.Schema(
         ),
         vol.Optional(CONF_MIN_R_SQUARED, default=DEFAULT_MIN_R_SQUARED): vol.All(
             vol.Coerce(float), vol.Range(min=0.5, max=1.0)
+        ),
+        vol.Optional(CONF_BASELINE_CO2, default=DEFAULT_BASELINE_CO2): vol.All(
+            vol.Coerce(float), vol.Range(min=300.0, max=600.0)
         ),
     }
 )

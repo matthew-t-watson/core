@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 from homeassistant import config_entries
 from homeassistant.components.ache.const import (
+    CONF_BASELINE_CO2,
     CONF_MIN_R_SQUARED,
     CONF_ROOM_VOLUME,
     CONF_SOURCE_SENSOR,
@@ -31,6 +32,7 @@ async def test_form(hass: HomeAssistant, mock_setup_entry: AsyncMock) -> None:
             CONF_SOURCE_SENSOR: "sensor.test_temperature",
             CONF_ROOM_VOLUME: 50.0,
             CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
+            CONF_BASELINE_CO2: 420.0,
         },
     )
     await hass.async_block_till_done()
@@ -41,6 +43,7 @@ async def test_form(hass: HomeAssistant, mock_setup_entry: AsyncMock) -> None:
         CONF_SOURCE_SENSOR: "sensor.test_temperature",
         CONF_ROOM_VOLUME: 50.0,
         CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
+        CONF_BASELINE_CO2: 420.0,
     }
     assert len(mock_setup_entry.mock_calls) == 1
 
@@ -59,6 +62,7 @@ async def test_form_sensor_not_found(
             CONF_SOURCE_SENSOR: "sensor.nonexistent",
             CONF_ROOM_VOLUME: 50.0,
             CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
+            CONF_BASELINE_CO2: 420.0,
         },
     )
 
@@ -76,6 +80,7 @@ async def test_form_sensor_not_found(
             CONF_SOURCE_SENSOR: "sensor.test_temperature",
             CONF_ROOM_VOLUME: 50.0,
             CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
+            CONF_BASELINE_CO2: 420.0,
         },
     )
     await hass.async_block_till_done()
@@ -86,5 +91,6 @@ async def test_form_sensor_not_found(
         CONF_SOURCE_SENSOR: "sensor.test_temperature",
         CONF_ROOM_VOLUME: 50.0,
         CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
+        CONF_BASELINE_CO2: 420.0,
     }
     assert len(mock_setup_entry.mock_calls) == 1

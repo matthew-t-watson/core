@@ -13,9 +13,11 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_BASELINE_CO2,
     CONF_MIN_R_SQUARED,
     CONF_ROOM_VOLUME,
     CONF_SOURCE_SENSOR,
+    DEFAULT_BASELINE_CO2,
     DEFAULT_MIN_R_SQUARED,
     DOMAIN,
 )
@@ -44,6 +46,17 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
                 max=1.0,
                 step=0.01,
                 mode=selector.NumberSelectorMode.SLIDER,
+            ),
+        ),
+        vol.Optional(
+            CONF_BASELINE_CO2, default=DEFAULT_BASELINE_CO2
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=300,
+                max=600,
+                step=10,
+                unit_of_measurement="ppm",
+                mode=selector.NumberSelectorMode.BOX,
             ),
         ),
     }

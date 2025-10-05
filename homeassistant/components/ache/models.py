@@ -101,9 +101,17 @@ class TimeSeriesData:
         return []
 
     def fit_exponential_decay(
-        self, room_volume_m3: float, min_points: int = 5
+        self,
+        room_volume_m3: float,
+        min_points: int = 5,
+        min_r_squared: float = 0.85,
+        baseline_co2: float = 420.0,
     ) -> AchEstimate | None:
         """Fit exponential decay model to data and calculate ACH.
+
+        Uses an iterative approach: starts with recent data and expands backwards
+        in time, continuing as long as R² remains above threshold. This is robust
+        to noisy sensor data.
 
         The exponential decay model is:
         C(t) = C_baseline + (C_0 - C_baseline) * e^(-λt)
@@ -118,24 +126,17 @@ class TimeSeriesData:
         Args:
             room_volume_m3: Room volume in cubic meters
             min_points: Minimum number of points needed for fitting
+            min_r_squared: Minimum R² quality threshold
+            baseline_co2: Baseline CO2 level in ppm (outdoor air, typically 420)
 
         Returns:
             AchEstimate if successful fit with good quality, None otherwise
         """
-        decay_data = self.detect_decay_sequence(min_points)
-
-        if not decay_data:
-            _LOGGER.debug("No decay sequence found with at least %d points", min_points)
+        if len(self._data) < min_points:
+            _LOGGER.debug(
+                "Not enough data points: %d (need %d)", len(self._data), min_points
+            )
             return None
-
-        # Convert to numpy arrays
-        times = np.array(
-            [
-                (point.timestamp - decay_data[0].timestamp).total_seconds()
-                for point in decay_data
-            ]
-        )
-        concentrations = np.array([point.value for point in decay_data])
 
         # Define exponential decay function
         def exp_decay(
@@ -144,64 +145,111 @@ class TimeSeriesData:
             """Exponential decay: C(t) = baseline + amplitude * e^(-decay_rate * t)."""
             return baseline + amplitude * np.exp(-decay_rate * t)
 
-        try:
-            # Initial parameter guesses
-            baseline_guess = concentrations[-1]  # Assume last value approaches baseline
-            amplitude_guess = concentrations[0] - baseline_guess
-            # Rough decay rate estimate: assume half-life around middle of sequence
-            half_time = times[-1] / 2
-            decay_rate_guess = np.log(2) / half_time if half_time > 0 else 0.001
+        best_estimate: AchEstimate | None = None
+        best_window_size = 0
 
-            # Fit the curve
-            popt, _ = optimize.curve_fit(
-                exp_decay,
-                times,
-                concentrations,
-                p0=[baseline_guess, amplitude_guess, decay_rate_guess],
-                bounds=(
-                    [0, 0, 0],  # Lower bounds
-                    [
-                        np.inf,
-                        np.inf,
-                        10,
-                    ],  # Upper bounds (decay_rate < 10/s is reasonable)
-                ),
-                maxfev=5000,
+        # Try increasingly larger windows of recent data
+        for window_size in range(min_points, len(self._data) + 1):
+            # Get the most recent window_size points
+            window_data = list(self._data)[-window_size:]
+
+            # Convert to numpy arrays
+            times = np.array(
+                [
+                    (point.timestamp - window_data[0].timestamp).total_seconds()
+                    for point in window_data
+                ]
             )
+            concentrations = np.array([point.value for point in window_data])
 
-            baseline, amplitude, decay_rate = popt
+            # Check if data is generally decreasing (simple sanity check)
+            if concentrations[0] <= concentrations[-1]:
+                # Not a decay - values increasing or flat
+                _LOGGER.debug(
+                    "Window size %d: Not a decay sequence (start=%.1f, end=%.1f)",
+                    window_size,
+                    concentrations[0],
+                    concentrations[-1],
+                )
+                break
 
-            # Calculate R²
-            predicted = exp_decay(times, baseline, amplitude, decay_rate)
-            residuals = concentrations - predicted
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((concentrations - np.mean(concentrations)) ** 2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+            try:
+                # Initial parameter guesses
+                # Use configured baseline as starting point
+                baseline_guess = baseline_co2
+                amplitude_guess = concentrations[0] - baseline_guess
+                half_time = times[-1] / 2
+                decay_rate_guess = np.log(2) / half_time if half_time > 0 else 0.001
 
-            # Convert decay rate to ACH (per hour)
-            ach = decay_rate * 3600
+                # Fit the curve
+                popt, _ = optimize.curve_fit(
+                    exp_decay,
+                    times,
+                    concentrations,
+                    p0=[baseline_guess, amplitude_guess, decay_rate_guess],
+                    bounds=(
+                        [0, 0, 0],  # Lower bounds
+                        [np.inf, np.inf, 10],  # Upper bounds
+                    ),
+                    maxfev=5000,
+                )
 
-            _LOGGER.debug(
-                "Exponential fit: ACH=%.2f, R²=%.4f, decay_rate=%.6f, "
-                "baseline=%.1f, amplitude=%.1f",
-                ach,
-                r_squared,
-                decay_rate,
-                baseline,
-                amplitude,
+                baseline, amplitude, decay_rate = popt
+
+                # Calculate R²
+                predicted = exp_decay(times, baseline, amplitude, decay_rate)
+                residuals = concentrations - predicted
+                ss_res = np.sum(residuals**2)
+                ss_tot = np.sum((concentrations - np.mean(concentrations)) ** 2)
+                r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+                _LOGGER.debug(
+                    "Window size %d: R²=%.4f, ACH=%.2f, decay_rate=%.6f",
+                    window_size,
+                    r_squared,
+                    decay_rate * 3600,
+                    decay_rate,
+                )
+
+                # If R² meets threshold, this is a valid estimate
+                if r_squared >= min_r_squared:
+                    # Convert decay rate to ACH (per hour)
+                    ach = decay_rate * 3600
+
+                    best_estimate = AchEstimate(
+                        ach=ach,
+                        r_squared=r_squared,
+                        decay_rate=decay_rate,
+                        baseline=baseline,
+                        initial_value=baseline + amplitude,
+                    )
+                    best_window_size = window_size
+                else:
+                    # R² fell below threshold, stop expanding
+                    _LOGGER.debug(
+                        "Window size %d: R²=%.4f below threshold %.4f, stopping",
+                        window_size,
+                        r_squared,
+                        min_r_squared,
+                    )
+                    break
+
+            except (RuntimeError, ValueError, optimize.OptimizeWarning) as err:
+                _LOGGER.debug("Window size %d: Fit failed: %s", window_size, err)
+                break
+
+        if best_estimate:
+            _LOGGER.info(
+                "Best fit using %d points: ACH=%.2f, R²=%.4f, decay_rate=%.6f/s",
+                best_window_size,
+                best_estimate.ach,
+                best_estimate.r_squared,
+                best_estimate.decay_rate,
             )
+        else:
+            _LOGGER.debug("No valid exponential decay fit found")
 
-            return AchEstimate(
-                ach=ach,
-                r_squared=r_squared,
-                decay_rate=decay_rate,
-                baseline=baseline,
-                initial_value=baseline + amplitude,
-            )
-
-        except (RuntimeError, ValueError, optimize.OptimizeWarning) as err:
-            _LOGGER.debug("Failed to fit exponential decay: %s", err)
-            return None
+        return best_estimate
 
 
 type AcheConfigEntry = ConfigEntry[AcheCoordinator]

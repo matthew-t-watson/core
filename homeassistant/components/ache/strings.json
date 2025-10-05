@@ -5,12 +5,14 @@
         "data": {
           "source_sensor": "Source sensor",
           "room_volume": "Room volume",
-          "min_r_squared": "Minimum R² threshold"
+          "min_r_squared": "Minimum R² threshold",
+          "baseline_co2": "Baseline CO2 level"
         },
         "data_description": {
           "source_sensor": "Select a CO2 or gas sensor",
           "room_volume": "Room volume in cubic meters (m³)",
-          "min_r_squared": "Minimum R² value for reliable ACH estimates (0.5 - 1.0)"
+          "min_r_squared": "Minimum R² value for reliable ACH estimates (0.5 - 1.0)",
+          "baseline_co2": "Outdoor/baseline CO2 concentration in ppm (typically 420)"
         },
         "description": "Configure the air change per hour (ACH) estimator. Select a CO2 or gas sensor that will decay when the room is ventilated, specify the room volume in cubic meters, and set the minimum R² threshold for reliable estimates."
       }
