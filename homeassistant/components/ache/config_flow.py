@@ -12,7 +12,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
-from .const import CONF_SOURCE_SENSOR, DOMAIN
+from .const import (
+    CONF_MIN_R_SQUARED,
+    CONF_ROOM_VOLUME,
+    CONF_SOURCE_SENSOR,
+    DEFAULT_MIN_R_SQUARED,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +26,25 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_SOURCE_SENSOR): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor"),
+        ),
+        vol.Required(CONF_ROOM_VOLUME): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=1,
+                max=1000,
+                step=0.1,
+                unit_of_measurement="m³",
+                mode=selector.NumberSelectorMode.BOX,
+            ),
+        ),
+        vol.Optional(
+            CONF_MIN_R_SQUARED, default=DEFAULT_MIN_R_SQUARED
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.5,
+                max=1.0,
+                step=0.01,
+                mode=selector.NumberSelectorMode.SLIDER,
+            ),
         ),
     }
 )

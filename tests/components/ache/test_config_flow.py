@@ -3,7 +3,13 @@
 from unittest.mock import AsyncMock
 
 from homeassistant import config_entries
-from homeassistant.components.ache.const import CONF_SOURCE_SENSOR, DOMAIN
+from homeassistant.components.ache.const import (
+    CONF_MIN_R_SQUARED,
+    CONF_ROOM_VOLUME,
+    CONF_SOURCE_SENSOR,
+    DEFAULT_MIN_R_SQUARED,
+    DOMAIN,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -23,6 +29,8 @@ async def test_form(hass: HomeAssistant, mock_setup_entry: AsyncMock) -> None:
         result["flow_id"],
         {
             CONF_SOURCE_SENSOR: "sensor.test_temperature",
+            CONF_ROOM_VOLUME: 50.0,
+            CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
         },
     )
     await hass.async_block_till_done()
@@ -31,6 +39,8 @@ async def test_form(hass: HomeAssistant, mock_setup_entry: AsyncMock) -> None:
     assert result["title"] == "ACH (sensor.test_temperature)"
     assert result["data"] == {
         CONF_SOURCE_SENSOR: "sensor.test_temperature",
+        CONF_ROOM_VOLUME: 50.0,
+        CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
     }
     assert len(mock_setup_entry.mock_calls) == 1
 
@@ -47,6 +57,8 @@ async def test_form_sensor_not_found(
         result["flow_id"],
         {
             CONF_SOURCE_SENSOR: "sensor.nonexistent",
+            CONF_ROOM_VOLUME: 50.0,
+            CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
         },
     )
 
@@ -62,6 +74,8 @@ async def test_form_sensor_not_found(
         result["flow_id"],
         {
             CONF_SOURCE_SENSOR: "sensor.test_temperature",
+            CONF_ROOM_VOLUME: 50.0,
+            CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
         },
     )
     await hass.async_block_till_done()
@@ -70,5 +84,7 @@ async def test_form_sensor_not_found(
     assert result["title"] == "ACH (sensor.test_temperature)"
     assert result["data"] == {
         CONF_SOURCE_SENSOR: "sensor.test_temperature",
+        CONF_ROOM_VOLUME: 50.0,
+        CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
     }
     assert len(mock_setup_entry.mock_calls) == 1

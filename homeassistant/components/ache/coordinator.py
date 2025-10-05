@@ -18,7 +18,8 @@ from homeassistant.core import (
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .models import TimeSeriesData
+from .const import CONF_MIN_R_SQUARED, CONF_ROOM_VOLUME, MIN_DECAY_POINTS
+from .models import AchEstimate, TimeSeriesData
 
 if TYPE_CHECKING:
     from . import AcheConfigEntry
@@ -49,6 +50,13 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
         self.data = TimeSeriesData()
         self._unsubscribe: CALLBACK_TYPE | None = None
 
+        # Configuration
+        self.room_volume = config_entry.data[CONF_ROOM_VOLUME]
+        self.min_r_squared = config_entry.data[CONF_MIN_R_SQUARED]
+
+        # ACH calculation results
+        self.ach_estimate: AchEstimate | None = None
+
     async def async_setup(self) -> None:
         """Set up the coordinator."""
         # Process initial state if available
@@ -66,6 +74,8 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
         new_state = event.data["new_state"]
         if new_state is not None:
             self._process_state(new_state)
+            # Try to calculate ACH estimate after each update
+            self._calculate_ach()
             self.async_set_updated_data(self.data)
 
     def _process_state(self, state: State) -> None:
@@ -94,6 +104,33 @@ class AcheCoordinator(DataUpdateCoordinator[TimeSeriesData]):
                 self.source_entity_id,
                 err,
                 state.state,
+            )
+
+    def _calculate_ach(self) -> None:
+        """Calculate ACH estimate from time series data."""
+        estimate = self.data.fit_exponential_decay(
+            self.room_volume, min_points=MIN_DECAY_POINTS
+        )
+
+        if estimate is None:
+            self.ach_estimate = None
+            return
+
+        # Only accept estimate if R² meets threshold
+        if estimate.r_squared >= self.min_r_squared:
+            self.ach_estimate = estimate
+            _LOGGER.info(
+                "ACH estimate: %.2f changes/hour (R²=%.4f, decay_rate=%.6f/s)",
+                estimate.ach,
+                estimate.r_squared,
+                estimate.decay_rate,
+            )
+        else:
+            self.ach_estimate = None
+            _LOGGER.debug(
+                "ACH estimate rejected: R²=%.4f below threshold %.4f",
+                estimate.r_squared,
+                self.min_r_squared,
             )
 
     async def async_shutdown(self) -> None:

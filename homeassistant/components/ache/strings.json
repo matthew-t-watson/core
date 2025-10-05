@@ -3,9 +3,16 @@
     "step": {
       "user": {
         "data": {
-          "source_sensor": "Source sensor"
+          "source_sensor": "Source sensor",
+          "room_volume": "Room volume",
+          "min_r_squared": "Minimum R² threshold"
         },
-        "description": "Select the sensor entity to track for air change calculations."
+        "data_description": {
+          "source_sensor": "Select a CO2 or gas sensor",
+          "room_volume": "Room volume in cubic meters (m³)",
+          "min_r_squared": "Minimum R² value for reliable ACH estimates (0.5 - 1.0)"
+        },
+        "description": "Configure the air change per hour (ACH) estimator. Select a CO2 or gas sensor that will decay when the room is ventilated, specify the room volume in cubic meters, and set the minimum R² threshold for reliable estimates."
       }
     },
     "error": {

@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from homeassistant.components.ache.const import CONF_SOURCE_SENSOR
+from homeassistant.components.ache.const import (
+    CONF_MIN_R_SQUARED,
+    CONF_ROOM_VOLUME,
+    CONF_SOURCE_SENSOR,
+    DEFAULT_MIN_R_SQUARED,
+)
 
 from tests.common import MockConfigEntry
 
@@ -26,6 +31,8 @@ def mock_config_entry() -> MockConfigEntry:
         domain="ache",
         data={
             CONF_SOURCE_SENSOR: "sensor.test_temperature",
+            CONF_ROOM_VOLUME: 50.0,
+            CONF_MIN_R_SQUARED: DEFAULT_MIN_R_SQUARED,
         },
         unique_id="test_ache_1",
     )

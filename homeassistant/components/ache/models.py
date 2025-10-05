@@ -5,12 +5,18 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 from typing import TYPE_CHECKING
+
+import numpy as np
+from scipy import optimize
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
     from .coordinator import AcheCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -19,6 +25,17 @@ class TimeSeriesDataPoint:
 
     timestamp: datetime
     value: float
+
+
+@dataclass
+class AchEstimate:
+    """Represent an ACH estimate with quality metrics."""
+
+    ach: float  # Air changes per hour
+    r_squared: float  # R² goodness of fit
+    decay_rate: float  # Decay constant (λ)
+    baseline: float  # Baseline CO2 level
+    initial_value: float  # Initial CO2 level
 
 
 class TimeSeriesData:
@@ -50,6 +67,141 @@ class TimeSeriesData:
     def clear(self) -> None:
         """Clear all stored data."""
         self._data.clear()
+
+    def detect_decay_sequence(self, min_points: int = 5) -> list[TimeSeriesDataPoint]:
+        """Detect a monotonically decreasing sequence in the data.
+
+        Returns the longest recent sequence of decreasing values,
+        or empty list if no valid sequence found.
+        """
+        if len(self._data) < min_points:
+            return []
+
+        decay_sequence: list[TimeSeriesDataPoint] = []
+
+        # Iterate backwards to find most recent decay
+        for i in range(len(self._data) - 1, -1, -1):
+            current_point = self._data[i]
+
+            if not decay_sequence:
+                # Start a new sequence
+                decay_sequence.append(current_point)
+            elif current_point.value > decay_sequence[-1].value:
+                # Value is decreasing (going backwards in time)
+                decay_sequence.append(current_point)
+            else:
+                # Sequence broken
+                break
+
+        # Reverse to get chronological order
+        decay_sequence.reverse()
+
+        if len(decay_sequence) >= min_points:
+            return decay_sequence
+        return []
+
+    def fit_exponential_decay(
+        self, room_volume_m3: float, min_points: int = 5
+    ) -> AchEstimate | None:
+        """Fit exponential decay model to data and calculate ACH.
+
+        The exponential decay model is:
+        C(t) = C_baseline + (C_0 - C_baseline) * e^(-λt)
+
+        Where:
+        - C(t) is concentration at time t
+        - C_baseline is the baseline (outdoor) concentration
+        - C_0 is the initial concentration
+        - λ is the decay rate constant
+        - ACH = λ * 3600 (convert from per-second to per-hour)
+
+        Args:
+            room_volume_m3: Room volume in cubic meters
+            min_points: Minimum number of points needed for fitting
+
+        Returns:
+            AchEstimate if successful fit with good quality, None otherwise
+        """
+        decay_data = self.detect_decay_sequence(min_points)
+
+        if not decay_data:
+            _LOGGER.debug("No decay sequence found with at least %d points", min_points)
+            return None
+
+        # Convert to numpy arrays
+        times = np.array(
+            [
+                (point.timestamp - decay_data[0].timestamp).total_seconds()
+                for point in decay_data
+            ]
+        )
+        concentrations = np.array([point.value for point in decay_data])
+
+        # Define exponential decay function
+        def exp_decay(
+            t: np.ndarray, baseline: float, amplitude: float, decay_rate: float
+        ) -> np.ndarray:
+            """Exponential decay: C(t) = baseline + amplitude * e^(-decay_rate * t)."""
+            return baseline + amplitude * np.exp(-decay_rate * t)
+
+        try:
+            # Initial parameter guesses
+            baseline_guess = concentrations[-1]  # Assume last value approaches baseline
+            amplitude_guess = concentrations[0] - baseline_guess
+            # Rough decay rate estimate: assume half-life around middle of sequence
+            half_time = times[-1] / 2
+            decay_rate_guess = np.log(2) / half_time if half_time > 0 else 0.001
+
+            # Fit the curve
+            popt, _ = optimize.curve_fit(
+                exp_decay,
+                times,
+                concentrations,
+                p0=[baseline_guess, amplitude_guess, decay_rate_guess],
+                bounds=(
+                    [0, 0, 0],  # Lower bounds
+                    [
+                        np.inf,
+                        np.inf,
+                        10,
+                    ],  # Upper bounds (decay_rate < 10/s is reasonable)
+                ),
+                maxfev=5000,
+            )
+
+            baseline, amplitude, decay_rate = popt
+
+            # Calculate R²
+            predicted = exp_decay(times, baseline, amplitude, decay_rate)
+            residuals = concentrations - predicted
+            ss_res = np.sum(residuals**2)
+            ss_tot = np.sum((concentrations - np.mean(concentrations)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+            # Convert decay rate to ACH (per hour)
+            ach = decay_rate * 3600
+
+            _LOGGER.debug(
+                "Exponential fit: ACH=%.2f, R²=%.4f, decay_rate=%.6f, "
+                "baseline=%.1f, amplitude=%.1f",
+                ach,
+                r_squared,
+                decay_rate,
+                baseline,
+                amplitude,
+            )
+
+            return AchEstimate(
+                ach=ach,
+                r_squared=r_squared,
+                decay_rate=decay_rate,
+                baseline=baseline,
+                initial_value=baseline + amplitude,
+            )
+
+        except (RuntimeError, ValueError, optimize.OptimizeWarning) as err:
+            _LOGGER.debug("Failed to fit exponential decay: %s", err)
+            return None
 
 
 type AcheConfigEntry = ConfigEntry[AcheCoordinator]

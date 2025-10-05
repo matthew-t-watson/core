@@ -26,7 +26,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: AcheConfigEntry) -> bool
 
     coordinator = AcheCoordinator(hass, source_entity_id, entry)
     await coordinator.async_setup()
-    await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
 
