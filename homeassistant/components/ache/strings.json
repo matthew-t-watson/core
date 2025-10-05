@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "source_sensor": "Source sensor"
+        },
+        "description": "Select the sensor entity to track for air change calculations."
+      }
+    },
+    "error": {
+      "cannot_connect": "Source sensor not found",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "ach": {
+        "name": "ACH"
+      }
+    }
+  }
+}

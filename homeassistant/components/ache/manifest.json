@@ -1,0 +1,12 @@
+{
+  "domain": "ache",
+  "name": "ache",
+  "codeowners": ["@matthew-t-watson"],
+  "config_flow": true,
+  "dependencies": ["homeassistant"],
+  "documentation": "https://www.home-assistant.io/integrations/ache",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "quality_scale": "bronze",
+  "requirements": []
+}

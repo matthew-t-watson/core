@@ -1,0 +1,82 @@
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: Integration does not register custom actions.
+  appropriate-polling: done
+  brands:
+    status: exempt
+    comment: Helper integration does not require branding.
+  common-modules: done
+  config-flow-test-coverage: done
+  config-flow: done
+  dependency-transparency:
+    status: exempt
+    comment: Integration uses only core homeassistant dependency which is transparent.
+  docs-actions:
+    status: exempt
+    comment: Integration does not provide custom actions.
+  docs-high-level-description:
+    status: exempt
+    comment: Helper integration - documentation will be added in separate PR.
+  docs-installation-instructions:
+    status: exempt
+    comment: Helper integration - documentation will be added in separate PR.
+  docs-removal-instructions:
+    status: exempt
+    comment: Helper integration - documentation will be added in separate PR.
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry:
+    status: exempt
+    comment: Integration allows multiple instances tracking different sensors.
+
+  # Silver
+  action-exceptions: todo
+  config-entry-unloading: done
+  docs-configuration-parameters:
+    status: exempt
+    comment: Helper integration - documentation will be added in separate PR.
+  docs-installation-parameters:
+    status: exempt
+    comment: Helper integration - documentation will be added in separate PR.
+  entity-unavailable: done
+  integration-owner: todo
+  log-when-unavailable: done
+  parallel-updates: done
+  reauthentication-flow:
+    status: exempt
+    comment: Integration does not use authentication.
+  test-coverage: done
+
+  # Gold
+  devices: todo
+  diagnostics: todo
+  discovery-update-info: todo
+  discovery: todo
+  docs-data-update: todo
+  docs-examples: todo
+  docs-known-limitations: todo
+  docs-supported-devices: todo
+  docs-supported-functions: todo
+  docs-troubleshooting: todo
+  docs-use-cases: todo
+  dynamic-devices: todo
+  entity-category: todo
+  entity-device-class: todo
+  entity-disabled-by-default: todo
+  entity-translations: todo
+  exception-translations: todo
+  icon-translations: todo
+  reconfiguration-flow: todo
+  repair-issues: todo
+  stale-devices: todo
+
+  # Platinum
+  async-dependency: todo
+  inject-websession: todo
+  strict-typing: todo

@@ -44,6 +44,8 @@ build.json @home-assistant/supervisor
 /tests/components/acaia/ @zweckj
 /homeassistant/components/accuweather/ @bieniu
 /tests/components/accuweather/ @bieniu
+/homeassistant/components/ache/ @matthew-t-watson
+/tests/components/ache/ @matthew-t-watson
 /homeassistant/components/acmeda/ @atmurray
 /tests/components/acmeda/ @atmurray
 /homeassistant/components/adax/ @danielhiversen @lazytarget
