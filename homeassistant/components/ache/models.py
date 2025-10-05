@@ -138,12 +138,13 @@ class TimeSeriesData:
             )
             return None
 
-        # Define exponential decay function
-        def exp_decay(
-            t: np.ndarray, baseline: float, amplitude: float, decay_rate: float
-        ) -> np.ndarray:
-            """Exponential decay: C(t) = baseline + amplitude * e^(-decay_rate * t)."""
-            return baseline + amplitude * np.exp(-decay_rate * t)
+        # Define exponential decay function with fixed baseline
+        def exp_decay(t: np.ndarray, amplitude: float, decay_rate: float) -> np.ndarray:
+            """Exponential decay: C(t) = baseline_co2 + amplitude * e^(-decay_rate * t).
+
+            Note: baseline_co2 is fixed at the configured value, not optimized.
+            """
+            return baseline_co2 + amplitude * np.exp(-decay_rate * t)
 
         best_estimate: AchEstimate | None = None
         best_window_size = 0
@@ -174,30 +175,29 @@ class TimeSeriesData:
                 break
 
             try:
-                # Initial parameter guesses
-                # Use configured baseline as starting point
-                baseline_guess = baseline_co2
-                amplitude_guess = concentrations[0] - baseline_guess
+                # Initial parameter guesses (only amplitude and decay_rate)
+                # baseline_co2 is fixed, not optimized
+                amplitude_guess = concentrations[0] - baseline_co2
                 half_time = times[-1] / 2
                 decay_rate_guess = np.log(2) / half_time if half_time > 0 else 0.001
 
-                # Fit the curve
+                # Fit the curve (only optimizing amplitude and decay_rate)
                 popt, _ = optimize.curve_fit(
                     exp_decay,
                     times,
                     concentrations,
-                    p0=[baseline_guess, amplitude_guess, decay_rate_guess],
+                    p0=[amplitude_guess, decay_rate_guess],
                     bounds=(
-                        [0, 0, 0],  # Lower bounds
-                        [np.inf, np.inf, 10],  # Upper bounds
+                        [0, 0],  # Lower bounds: amplitude >= 0, decay_rate >= 0
+                        [np.inf, 10],  # Upper bounds: decay_rate <= 10/s
                     ),
                     maxfev=5000,
                 )
 
-                baseline, amplitude, decay_rate = popt
+                amplitude, decay_rate = popt
 
                 # Calculate R²
-                predicted = exp_decay(times, baseline, amplitude, decay_rate)
+                predicted = exp_decay(times, amplitude, decay_rate)
                 residuals = concentrations - predicted
                 ss_res = np.sum(residuals**2)
                 ss_tot = np.sum((concentrations - np.mean(concentrations)) ** 2)
@@ -220,8 +220,8 @@ class TimeSeriesData:
                         ach=ach,
                         r_squared=r_squared,
                         decay_rate=decay_rate,
-                        baseline=baseline,
-                        initial_value=baseline + amplitude,
+                        baseline=baseline_co2,
+                        initial_value=baseline_co2 + amplitude,
                     )
                     best_window_size = window_size
                 else:
