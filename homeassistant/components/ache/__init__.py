@@ -1,16 +1,63 @@
 """The ache integration."""
 
+from __future__ import annotations
+
+import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
-from .const import CONF_SOURCE_SENSOR
+from .const import (
+    CONF_MIN_R_SQUARED,
+    CONF_ROOM_VOLUME,
+    CONF_SOURCE_SENSOR,
+    DEFAULT_MIN_R_SQUARED,
+    DOMAIN,
+)
 from .coordinator import AcheCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+ACHE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_SOURCE_SENSOR): cv.entity_id,
+        vol.Optional(CONF_NAME): cv.string,
+        vol.Optional(CONF_ROOM_VOLUME, default=50.0): vol.All(
+            vol.Coerce(float), vol.Range(min=1.0, max=1000.0)
+        ),
+        vol.Optional(CONF_MIN_R_SQUARED, default=DEFAULT_MIN_R_SQUARED): vol.All(
+            vol.Coerce(float), vol.Range(min=0.5, max=1.0)
+        ),
+    }
+)
+
+CONFIG_SCHEMA = vol.Schema(
+    {DOMAIN: vol.All(cv.ensure_list, [ACHE_SCHEMA])},
+    extra=vol.ALLOW_EXTRA,
+)
+
 type AcheConfigEntry = ConfigEntry[AcheCoordinator]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the ache component from YAML configuration."""
+    if DOMAIN not in config:
+        return True
+
+    for conf in config[DOMAIN]:
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": "import"},
+                data=conf,
+            )
+        )
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AcheConfigEntry) -> bool:

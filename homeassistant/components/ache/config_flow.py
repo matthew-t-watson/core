@@ -90,6 +90,28 @@ class AcheConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
+    async def async_step_import(self, import_data: dict[str, Any]) -> ConfigFlowResult:
+        """Handle import from YAML configuration."""
+        # Check if already configured with this source sensor
+        await self.async_set_unique_id(import_data[CONF_SOURCE_SENSOR])
+        self._abort_if_unique_id_configured()
+
+        # Validate the imported data
+        try:
+            info = await validate_input(self.hass, import_data)
+        except CannotConnect:
+            _LOGGER.error(
+                "Cannot import ache configuration: source sensor %s not found",
+                import_data[CONF_SOURCE_SENSOR],
+            )
+            return self.async_abort(reason="cannot_connect")
+        except Exception:
+            _LOGGER.exception("Error importing ache configuration")
+            return self.async_abort(reason="unknown")
+
+        # Create config entry from YAML import
+        return self.async_create_entry(title=info["title"], data=import_data)
+
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
