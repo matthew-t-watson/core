@@ -8,5 +8,6 @@
   "integration_type": "helper",
   "iot_class": "calculated",
   "quality_scale": "bronze",
-  "requirements": ["scipy==1.15.1"]
+  "requirements": ["scipy==1.15.1"],
+  "version": "1.0.0"
 }
